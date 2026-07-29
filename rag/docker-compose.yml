@@ -1,0 +1,24 @@
+services:
+  ollama:
+    # Official Ollama image — runs the local LLM server used by the RAG advisor.
+    image: ollama/ollama
+
+    # Fixed container name makes `docker exec` commands easier to remember.
+    container_name: flight-advisor-ollama
+
+    # Map host port 11434 to the container so the UI/App Server can reach
+    # Ollama at http://localhost:11434 from the host machine.
+    ports:
+      - "11434:11434"
+
+    # Named volume persists downloaded models across container restarts/rebuilds.
+    # Without this, every `docker compose down -v` would wipe pulled models.
+    volumes:
+      - ollama_models:/root/.ollama
+
+    # Restart the container automatically unless it was stopped manually.
+    restart: unless-stopped
+
+# Top-level named volume declaration — stored in Docker's volume directory.
+volumes:
+  ollama_models:
