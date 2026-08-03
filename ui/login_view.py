@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+import logging
+import traceback
+
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QFormLayout,
@@ -11,6 +16,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class LoginView(QWidget):
     """Passive view — widgets and signals only, no business logic."""
@@ -18,10 +25,10 @@ class LoginView(QWidget):
     register_requested = Signal(str, str)
     login_requested = Signal(str, str)
 
-    def __init__(self) -> None:
+    def __init__(self, extra_tabs: list[tuple[str, QWidget]] | None = None) -> None:
         super().__init__()
-        self.setWindowTitle("FlightAdvisor — Login")
-        self.resize(420, 260)
+        self.setWindowTitle("FlightAdvisor")
+        self.resize(720, 480)
 
         self._register_email = QLineEdit()
         self._register_password = QLineEdit()
@@ -34,6 +41,8 @@ class LoginView(QWidget):
         tabs = QTabWidget()
         tabs.addTab(self._build_register_tab(), "Register")
         tabs.addTab(self._build_login_tab(), "Login")
+        for title, widget in extra_tabs or []:
+            tabs.addTab(widget, title)
 
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("FlightAdvisor"))
@@ -78,30 +87,26 @@ class LoginView(QWidget):
         return tab
 
     def _on_register_clicked(self) -> None:
-        print("Register button clicked")
+        logger.info("Register button clicked")
         try:
             self.register_requested.emit(
                 self._register_email.text().strip(),
                 self._register_password.text(),
             )
         except Exception:
-            import traceback
-
-            print("ERROR in _on_register_clicked:")
-            traceback.print_exc()
+            logger.error(
+                "ERROR in _on_register_clicked:\n%s", traceback.format_exc()
+            )
 
     def _on_login_clicked(self) -> None:
-        print("Login button clicked")
+        logger.info("Login button clicked")
         try:
             self.login_requested.emit(
                 self._login_email.text().strip(),
                 self._login_password.text(),
             )
         except Exception:
-            import traceback
-
-            print("ERROR in _on_login_clicked:")
-            traceback.print_exc()
+            logger.error("ERROR in _on_login_clicked:\n%s", traceback.format_exc())
 
     def show_info(self, title: str, message: str) -> None:
         QMessageBox.information(self, title, message)

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 import traceback
 from dataclasses import dataclass
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -20,7 +23,7 @@ class AuthModel:
         self._base_url = gateway_base_url.rstrip("/")
 
     def register(self, email: str, password: str) -> AuthResult:
-        print(f"AuthModel.register -> POST {self._base_url}/auth/register")
+        logger.info("AuthModel.register -> POST %s/auth/register", self._base_url)
         try:
             response = httpx.post(
                 f"{self._base_url}/auth/register",
@@ -28,15 +31,13 @@ class AuthModel:
                 timeout=30.0,
             )
         except httpx.RequestError as exc:
-            print(f"AuthModel.register network error: {exc}")
-            traceback.print_exc()
+            logger.exception("AuthModel.register network error")
             return AuthResult(success=False, message=f"Network error: {exc}")
         except Exception as exc:
-            print("ERROR in AuthModel.register:")
-            traceback.print_exc()
+            logger.error("ERROR in AuthModel.register:\n%s", traceback.format_exc())
             return AuthResult(success=False, message=f"Unexpected error: {exc}")
 
-        print(f"AuthModel.register status={response.status_code}")
+        logger.info("AuthModel.register status=%s", response.status_code)
         if response.status_code == 200:
             data = response.json()
             return AuthResult(
@@ -46,11 +47,10 @@ class AuthModel:
                 email=data.get("email"),
             )
 
-        detail = _extract_detail(response)
-        return AuthResult(success=False, message=detail)
+        return AuthResult(success=False, message=_extract_detail(response))
 
     def login(self, email: str, password: str) -> AuthResult:
-        print(f"AuthModel.login -> POST {self._base_url}/auth/login")
+        logger.info("AuthModel.login -> POST %s/auth/login", self._base_url)
         try:
             response = httpx.post(
                 f"{self._base_url}/auth/login",
@@ -58,15 +58,13 @@ class AuthModel:
                 timeout=30.0,
             )
         except httpx.RequestError as exc:
-            print(f"AuthModel.login network error: {exc}")
-            traceback.print_exc()
+            logger.exception("AuthModel.login network error")
             return AuthResult(success=False, message=f"Network error: {exc}")
         except Exception as exc:
-            print("ERROR in AuthModel.login:")
-            traceback.print_exc()
+            logger.error("ERROR in AuthModel.login:\n%s", traceback.format_exc())
             return AuthResult(success=False, message=f"Unexpected error: {exc}")
 
-        print(f"AuthModel.login status={response.status_code}")
+        logger.info("AuthModel.login status=%s", response.status_code)
         if response.status_code == 200:
             data = response.json()
             return AuthResult(
@@ -77,8 +75,7 @@ class AuthModel:
                 email=data.get("email"),
             )
 
-        detail = _extract_detail(response)
-        return AuthResult(success=False, message=detail)
+        return AuthResult(success=False, message=_extract_detail(response))
 
 
 def _extract_detail(response: httpx.Response) -> str:

@@ -1,8 +1,13 @@
+from __future__ import annotations
+
+import logging
 import traceback
 
 from auth_model import AuthModel
 from login_view import LoginView
 from session import SessionStore
+
+logger = logging.getLogger(__name__)
 
 
 class LoginPresenter:
@@ -16,12 +21,11 @@ class LoginPresenter:
         self._model = model
         self._session_store = session_store
 
-        # Wire view signals -> presenter handlers (HTTP happens inside these).
         view.register_requested.connect(self.on_register)
         view.login_requested.connect(self.on_login)
 
     def on_register(self, email: str, password: str) -> None:
-        print(f"Presenter on_register called with email={email!r}")
+        logger.info("Presenter on_register email=%s", email)
         try:
             if not email or not password:
                 self._view.show_error("Register", "Email and password are required.")
@@ -43,12 +47,13 @@ class LoginPresenter:
 
             self._view.show_error("Register", result.message)
         except Exception:
-            print("ERROR in LoginPresenter.on_register:")
-            traceback.print_exc()
-            self._view.show_error("Register", "Unexpected error — see terminal.")
+            logger.error(
+                "ERROR in LoginPresenter.on_register:\n%s", traceback.format_exc()
+            )
+            self._view.show_error("Register", "Unexpected error — see terminal logs.")
 
     def on_login(self, email: str, password: str) -> None:
-        print(f"Presenter on_login called with email={email!r}")
+        logger.info("Presenter on_login email=%s", email)
         try:
             if not email or not password:
                 self._view.show_error("Login", "Email and password are required.")
@@ -72,6 +77,7 @@ class LoginPresenter:
 
             self._view.show_error("Login", result.message)
         except Exception:
-            print("ERROR in LoginPresenter.on_login:")
-            traceback.print_exc()
-            self._view.show_error("Login", "Unexpected error — see terminal.")
+            logger.error(
+                "ERROR in LoginPresenter.on_login:\n%s", traceback.format_exc()
+            )
+            self._view.show_error("Login", "Unexpected error — see terminal logs.")

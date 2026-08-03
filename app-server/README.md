@@ -1,4 +1,4 @@
-# App Server — Slice 1 (Auth)
+# App Server — Slice 1 (Auth) + Slice 2 (Flight search)
 
 FastAPI application server with CQRS-style commands/queries and SQLite event store.
 
@@ -12,6 +12,8 @@ py -m venv .venv
 
 > On Windows, use `py` (not `python`) to create the venv — the global
 > `python` command may be an empty App Execution Alias stub.
+
+Requires project-root `.env` with `FLIGHT_API_KEY` (same as Slice 0).
 
 ## Run
 
@@ -29,7 +31,10 @@ Events are persisted to `data/events.db` (SQLite). To reset auth data, stop the 
 |--------|------|-------------|
 | POST | `/auth/register` | Register a new user (`email`, `password`) |
 | POST | `/auth/login` | Login and receive JWT |
+| GET | `/flights/search?origin=&destination=&date=` | Search flights (JWT required) |
 | GET | `/health` | Service health |
+
+Search responses are cached in memory for ~10 minutes (keyed by origin+destination+date). Watch the app-server logs for `cache hit` / `cache miss`.
 
 ## Optional environment variables
 
@@ -37,11 +42,13 @@ Events are persisted to `data/events.db` (SQLite). To reset auth data, stop the 
 |----------|---------|-------------|
 | `JWT_SECRET` | dev secret | Signing key for JWT tokens |
 | `JWT_EXPIRE_MINUTES` | `60` | Token lifetime |
+| `FLIGHT_API_KEY` | (from `.env`) | AviationStack access key |
 
-## Manual test (curl)
+## Manual test (PowerShell)
 
 ```powershell
-curl -X POST http://127.0.0.1:8001/auth/register -H "Content-Type: application/json" -d "{\"email\":\"test@example.com\",\"password\":\"secret123\"}"
-
-curl -X POST http://127.0.0.1:8001/auth/login -H "Content-Type: application/json" -d "{\"email\":\"test@example.com\",\"password\":\"secret123\"}"
+$body = '{"email":"test@example.com","password":"secret123"}'
+$login = Invoke-RestMethod -Uri http://127.0.0.1:8001/auth/login -Method POST -ContentType 'application/json' -Body $body
+$token = $login.access_token
+Invoke-RestMethod -Uri "http://127.0.0.1:8001/flights/search?origin=JFK&destination=LAX&date=2026-08-03" -Headers @{ Authorization = "Bearer $token" }
 ```

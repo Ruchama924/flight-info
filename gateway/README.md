@@ -1,6 +1,6 @@
-# Gateway — Slice 1 (Auth proxy)
+# Gateway — Slice 1 (Auth) + Slice 2 (Flight search proxy)
 
-FastAPI gateway that forwards auth requests to the app-server.
+FastAPI gateway that forwards requests to the app-server.
 
 ## Setup
 
@@ -29,17 +29,10 @@ Health check: http://127.0.0.1:8000/health
 |--------|------|-------------|
 | POST | `/auth/register` | app-server `/auth/register` |
 | POST | `/auth/login` | app-server `/auth/login` |
+| GET | `/flights/search` | app-server `/flights/search` (forwards `Authorization`) |
 
 ## Optional environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `APP_SERVER_URL` | `http://127.0.0.1:8001` | Upstream app-server base URL |
-
-## Manual test (curl)
-
-```powershell
-curl -X POST http://127.0.0.1:8000/auth/register -H "Content-Type: application/json" -d "{\"email\":\"test@example.com\",\"password\":\"secret123\"}"
-
-curl -X POST http://127.0.0.1:8000/auth/login -H "Content-Type: application/json" -d "{\"email\":\"test@example.com\",\"password\":\"secret123\"}"
-```
