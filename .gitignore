@@ -84,3 +84,7 @@ desktop.ini
 # Logs
 *.log
 logs/
+
+# SQLite event store (local dev)
+app-server/data/
+*.db

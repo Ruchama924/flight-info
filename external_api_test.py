@@ -1,5 +1,8 @@
-#!/usr/bin/env python3
-"""Slice 0 smoke test — one request to AviationStack using FLIGHT_API_KEY from .env."""
+"""Slice 0 smoke test — one request to AviationStack using FLIGHT_API_KEY from .env.
+
+Run on Windows:  py external_api_test.py
+(with python-dotenv installed in your venv or globally via py -m pip)
+"""
 
 from __future__ import annotations
 
