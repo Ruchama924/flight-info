@@ -32,9 +32,10 @@ Events are persisted to `data/events.db` (SQLite). To reset auth data, stop the 
 | POST | `/auth/register` | Register a new user (`email`, `password`) |
 | POST | `/auth/login` | Login and receive JWT |
 | GET | `/flights/search?origin=&destination=&date=` | Search flights (JWT required) |
+| GET | `/flights/{flight_id}` | Flight details from search cache (JWT) |
 | GET | `/health` | Service health |
 
-Search responses are cached in memory for ~10 minutes (keyed by origin+destination+date). Watch the app-server logs for `cache hit` / `cache miss`.
+Search responses are cached in memory for ~10 minutes (keyed by origin+destination+date). Details reuse that cache — run a search first, then open details. Watch the app-server logs for `cache hit` / `cache miss`.
 
 ## Optional environment variables
 

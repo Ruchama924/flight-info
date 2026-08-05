@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -15,6 +16,13 @@ class SearchResult:
     message: str
     flights: list[dict[str, Any]] | None = None
     cache_hit: bool = False
+
+
+@dataclass
+class DetailsResult:
+    success: bool
+    message: str
+    details: dict[str, Any] | None = None
 
 
 class SearchModel:
@@ -61,6 +69,34 @@ class SearchModel:
             )
 
         return SearchResult(success=False, message=_extract_detail(response))
+
+    def get_flight_details(self, flight_id: str, access_token: str) -> DetailsResult:
+        encoded = quote(flight_id, safe="")
+        url = f"{self._base_url}/flights/{encoded}"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        logger.info("GET %s", url)
+
+        try:
+            response = httpx.get(url, headers=headers, timeout=30.0)
+        except httpx.RequestError as exc:
+            logger.exception("Details network error")
+            return DetailsResult(success=False, message=f"Network error: {exc}")
+
+        logger.info("Details response status=%s", response.status_code)
+
+        if response.status_code == 200:
+            return DetailsResult(success=True, message="OK", details=response.json())
+
+        if response.status_code == 401:
+            return DetailsResult(
+                success=False,
+                message="Session expired or invalid. Please log in again.",
+            )
+
+        if response.status_code == 404:
+            return DetailsResult(success=False, message=_extract_detail(response))
+
+        return DetailsResult(success=False, message=_extract_detail(response))
 
 
 def _extract_detail(response: httpx.Response) -> str:

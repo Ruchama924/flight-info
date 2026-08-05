@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import traceback
 
+from flight_details_presenter import FlightDetailsPresenter
 from search_model import SearchModel
 from search_view import SearchView
 from session import SessionStore
@@ -16,11 +17,14 @@ class SearchPresenter:
         view: SearchView,
         model: SearchModel,
         session_store: SessionStore,
+        details_presenter: FlightDetailsPresenter,
     ) -> None:
         self._view = view
         self._model = model
         self._session_store = session_store
+        self._details_presenter = details_presenter
         view.search_requested.connect(self.on_search)
+        view.details_requested.connect(self.on_details)
 
     def on_search(self, origin: str, destination: str, date: str) -> None:
         logger.info(
@@ -72,6 +76,11 @@ class SearchPresenter:
                     "(JFK→LAX, LHR→CDG) or today's date.",
                 )
         except Exception:
-            logger.error("ERROR in SearchPresenter.on_search:\n%s", traceback.format_exc())
+            logger.error(
+                "ERROR in SearchPresenter.on_search:\n%s", traceback.format_exc()
+            )
             self._view.set_status("Unexpected error")
             self._view.show_error("Search", "Unexpected error — see terminal logs.")
+
+    def on_details(self, flight_id: str) -> None:
+        self._details_presenter.open_details(flight_id)

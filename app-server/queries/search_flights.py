@@ -14,7 +14,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from models.flight_schemas import FlightSummary
+from models.flight_schemas import CodeshareInfo, FlightDetails, FlightSummary
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,7 @@ class SearchFlightsQuery:
 @dataclass
 class _CacheEntry:
     flights: list[FlightSummary]
+    details_by_id: dict[str, FlightDetails]
     expires_at: datetime
 
 
@@ -56,29 +57,46 @@ class SearchFlightsHandler:
 
         cached = self._get_fresh_cache(cache_key)
         if cached is not None:
-            logger.info("cache hit key=%s flights=%d", cache_key, len(cached))
-            return cached, True
+            logger.info("cache hit key=%s flights=%d", cache_key, len(cached.flights))
+            return cached.flights, True
 
         logger.info("cache miss key=%s — calling AviationStack", cache_key)
-        flights = self._fetch_and_map(origin, destination, date)
+        flights, details_by_id = self._fetch_and_map(origin, destination, date)
         self._cache[cache_key] = _CacheEntry(
             flights=flights,
+            details_by_id=details_by_id,
             expires_at=datetime.now(timezone.utc) + CACHE_TTL,
         )
         return flights, False
 
-    def _get_fresh_cache(self, key: str) -> list[FlightSummary] | None:
+    def find_cached_details(self, flight_id: str) -> FlightDetails | None:
+        """Look up a flight across all non-expired search cache entries."""
+        wanted = flight_id.strip().upper()
+        now = datetime.now(timezone.utc)
+        expired_keys = [
+            key for key, entry in self._cache.items() if now >= entry.expires_at
+        ]
+        for key in expired_keys:
+            del self._cache[key]
+
+        for entry in self._cache.values():
+            for cached_id, details in entry.details_by_id.items():
+                if cached_id.upper() == wanted:
+                    return details
+        return None
+
+    def _get_fresh_cache(self, key: str) -> _CacheEntry | None:
         entry = self._cache.get(key)
         if entry is None:
             return None
         if datetime.now(timezone.utc) >= entry.expires_at:
             del self._cache[key]
             return None
-        return entry.flights
+        return entry
 
     def _fetch_and_map(
         self, origin: str, destination: str, date: str
-    ) -> list[FlightSummary]:
+    ) -> tuple[list[FlightSummary], dict[str, FlightDetails]]:
         api_key = os.getenv("FLIGHT_API_KEY", "").strip()
         if not api_key:
             raise ExternalApiError(
@@ -94,11 +112,25 @@ class SearchFlightsHandler:
             raise ExternalApiError("Unexpected AviationStack response shape.")
 
         flights: list[FlightSummary] = []
+        details_by_id: dict[str, FlightDetails] = {}
         for item in items:
-            summary = self._to_summary(item, origin, destination, date)
-            if summary is not None:
-                flights.append(summary)
-        return flights
+            details = self._to_details(item, origin, destination, date)
+            if details is None:
+                continue
+            details_by_id[details.flight_id] = details
+            flights.append(
+                FlightSummary(
+                    flight_id=details.flight_id,
+                    airline=details.airline,
+                    origin=details.origin,
+                    destination=details.destination,
+                    departure_time=details.departure_time,
+                    arrival_time=details.arrival_time,
+                    price=details.price,
+                    stops=details.stops,
+                )
+            )
+        return flights, details_by_id
 
     def _call_aviationstack(
         self, api_key: str, origin: str, destination: str, date: str
@@ -190,13 +222,13 @@ class SearchFlightsHandler:
             return False
         return True
 
-    def _to_summary(
+    def _to_details(
         self,
         item: dict[str, Any],
         fallback_origin: str,
         fallback_destination: str,
         fallback_date: str,
-    ) -> FlightSummary | None:
+    ) -> FlightDetails | None:
         airline = (item.get("airline") or {}).get("name") or "Unknown airline"
         flight = item.get("flight") or {}
         flight_iata = flight.get("iata") or flight.get("number") or ""
@@ -205,11 +237,13 @@ class SearchFlightsHandler:
 
         departure = item.get("departure") or {}
         arrival = item.get("arrival") or {}
+        aircraft = item.get("aircraft") or {}
         origin = (departure.get("iata") or fallback_origin).upper()
         destination = (arrival.get("iata") or fallback_destination).upper()
 
-        # Prefer live schedule fields; fall back to flight_date.
-        departure_time = departure.get("scheduled") or item.get("flight_date") or fallback_date
+        departure_time = (
+            departure.get("scheduled") or item.get("flight_date") or fallback_date
+        )
         arrival_time = arrival.get("scheduled")
 
         # AviationStack free tier typically has no commercial fare data.
@@ -217,11 +251,19 @@ class SearchFlightsHandler:
         # (Slice 3) have stable numbers. Same flight_id => same price.
         price = _mock_price_from_flight_id(str(flight_iata))
 
+        codeshare_raw = flight.get("codeshared")
+        codeshare: CodeshareInfo | None = None
         stops = 0
-        if item.get("flight", {}).get("codeshared"):
+        if isinstance(codeshare_raw, dict) and codeshare_raw:
             stops = 1
+            codeshare = CodeshareInfo(
+                airline_name=codeshare_raw.get("airline_name"),
+                flight_iata=codeshare_raw.get("flight_iata")
+                or codeshare_raw.get("flight_number"),
+                airline_iata=codeshare_raw.get("airline_iata"),
+            )
 
-        return FlightSummary(
+        return FlightDetails(
             flight_id=str(flight_iata),
             airline=str(airline),
             origin=origin,
@@ -230,7 +272,29 @@ class SearchFlightsHandler:
             arrival_time=str(arrival_time) if arrival_time else None,
             price=price,
             stops=stops,
+            departure_airport=departure.get("airport"),
+            departure_terminal=departure.get("terminal"),
+            departure_gate=departure.get("gate"),
+            departure_delay_minutes=_as_int(departure.get("delay")),
+            arrival_airport=arrival.get("airport"),
+            arrival_terminal=arrival.get("terminal"),
+            arrival_gate=arrival.get("gate"),
+            arrival_delay_minutes=_as_int(arrival.get("delay")),
+            aircraft_registration=aircraft.get("registration"),
+            aircraft_iata=aircraft.get("iata"),
+            aircraft_icao=aircraft.get("icao"),
+            flight_status=item.get("flight_status"),
+            codeshare=codeshare,
         )
+
+
+def _as_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _mock_price_from_flight_id(flight_id: str) -> float:

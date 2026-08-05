@@ -11,7 +11,12 @@ from commands.register_user import (
     RegisterUserHandler,
 )
 from models.auth_schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
-from models.flight_schemas import FlightSearchResponse
+from models.flight_schemas import FlightDetails, FlightSearchResponse
+from queries.get_flight_details import (
+    FlightNotFoundError,
+    GetFlightDetailsHandler,
+    GetFlightDetailsQuery,
+)
 from queries.login_user import InvalidCredentialsError, LoginQuery, LoginUserHandler
 from queries.search_flights import (
     ExternalApiError,
@@ -30,8 +35,9 @@ event_store = SQLiteEventStore(DB_PATH)
 register_handler = RegisterUserHandler(event_store)
 login_handler = LoginUserHandler(event_store)
 search_handler = SearchFlightsHandler()
+details_handler = GetFlightDetailsHandler(search_handler)
 
-app = FastAPI(title="FlightAdvisor App Server", version="0.2.0")
+app = FastAPI(title="FlightAdvisor App Server", version="0.3.0")
 
 
 @app.post("/auth/register", response_model=RegisterResponse)
@@ -84,6 +90,17 @@ def search_flights(
         flights=flights,
         cache_hit=cache_hit,
     )
+
+
+@app.get("/flights/{flight_id}", response_model=FlightDetails)
+def get_flight_details(
+    flight_id: str,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> FlightDetails:
+    try:
+        return details_handler.handle(GetFlightDetailsQuery(flight_id=flight_id))
+    except FlightNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get("/health")

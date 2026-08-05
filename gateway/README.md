@@ -30,6 +30,7 @@ Health check: http://127.0.0.1:8000/health
 | POST | `/auth/register` | app-server `/auth/register` |
 | POST | `/auth/login` | app-server `/auth/login` |
 | GET | `/flights/search` | app-server `/flights/search` (forwards `Authorization`) |
+| GET | `/flights/{flight_id}` | app-server `/flights/{flight_id}` (forwards `Authorization`) |
 
 ## Optional environment variables
 

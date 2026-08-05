@@ -4,6 +4,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from auth_model import AuthModel
+from flight_details_presenter import FlightDetailsPresenter
 from login_presenter import LoginPresenter
 from login_view import LoginView
 from search_model import SearchModel
@@ -22,20 +23,27 @@ def main() -> int:
     app = QApplication(sys.argv)
 
     session_store = SessionStore()
+    search_model = SearchModel()
 
     search_view = SearchView()
-    search_model = SearchModel()
-    search_presenter = SearchPresenter(search_view, search_model, session_store)
+    details_presenter = FlightDetailsPresenter(
+        model=search_model,
+        session_store=session_store,
+        parent_view=search_view,
+    )
+    search_presenter = SearchPresenter(
+        search_view, search_model, session_store, details_presenter
+    )
 
     login_view = LoginView(extra_tabs=[("Search Flights", search_view)])
     auth_model = AuthModel()
     login_presenter = LoginPresenter(login_view, auth_model, session_store)
 
     login_view.show()
-    logger.info("UI ready — Register / Login / Search Flights")
+    logger.info("UI ready — Register / Login / Search Flights (details + chart)")
     exit_code = app.exec()
     # Keep presenters alive for the app lifetime (avoid silent GC of slots).
-    _ = (login_presenter, search_presenter)
+    _ = (login_presenter, search_presenter, details_presenter)
     return exit_code
 
 
