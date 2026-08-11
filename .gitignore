@@ -63,6 +63,7 @@ docker-compose.override.yml
 # Ollama / RAG model caches (local dev artifacts)
 .rag_cache/
 vector_store/
+rag/chroma_db/
 *.bin
 *.gguf
 

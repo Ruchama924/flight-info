@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 
 APP_SERVER_URL = os.getenv("APP_SERVER_URL", "http://127.0.0.1:8001")
 
-app = FastAPI(title="FlightAdvisor Gateway", version="0.3.0")
+app = FastAPI(title="FlightAdvisor Gateway", version="0.4.0")
 
 
 async def _forward(request: Request, path: str) -> Response:
@@ -23,8 +23,11 @@ async def _forward(request: Request, path: str) -> Response:
 
     body = await request.body()
 
+    # Advisor LLM calls can take longer than search/auth.
+    timeout = 90.0 if path.startswith("/advisor/") else 60.0
+
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             upstream = await client.request(
                 method=request.method,
                 url=url,
@@ -62,6 +65,11 @@ async def search_flights(request: Request) -> Response:
 @app.get("/flights/{flight_id}")
 async def get_flight_details(flight_id: str, request: Request) -> Response:
     return await _forward(request, f"/flights/{flight_id}")
+
+
+@app.post("/advisor/ask")
+async def ask_advisor(request: Request) -> Response:
+    return await _forward(request, "/advisor/ask")
 
 
 @app.get("/health")

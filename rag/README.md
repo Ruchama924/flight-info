@@ -1,72 +1,78 @@
-# RAG — Ollama (Slice 0)
+# RAG — Ollama + knowledge ingest (Slice 0 + Slice 4)
 
-Local LLM server for the FlightAdvisor travel advisor. This folder only starts Ollama and verifies it responds.
+Local LLM server and knowledge base for the FlightAdvisor travel advisor.
 
 ## Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
 
-## 1. Start the container
+## 1. Start Ollama
 
 From this directory (`rag/`):
 
-```bash
+```powershell
 docker compose up -d
-```
-
-Check that the container is running:
-
-```bash
 docker compose ps
 ```
 
 You should see `flight-advisor-ollama` with state **running**.
 
-## 2. Pull a small model
+## 2. Pull models
 
-Choose a lightweight model (good for local testing):
+Pull the small chat model (generation):
 
-- `llama3.2:1b` — very small, fast
-- `phi3` — slightly larger, still reasonable on modest hardware
-
-Pull it inside the running container:
-
-```bash
+```powershell
 docker exec -it flight-advisor-ollama ollama pull llama3.2:1b
 ```
 
-Or:
+Pull the embedding model (required for RAG ingest + retrieval):
 
-```bash
+```powershell
+docker exec -it flight-advisor-ollama ollama pull nomic-embed-text
+```
+
+Optional larger chat model:
+
+```powershell
 docker exec -it flight-advisor-ollama ollama pull phi3
 ```
 
-The first pull downloads weights into the `ollama_models` Docker volume and may take a few minutes.
+## 3. Smoke-test chat generation
 
-## 3. Test the model with curl
-
-Send a generation request to the Ollama HTTP API:
-
-```bash
+```powershell
 curl http://localhost:11434/api/generate -d "{\"model\": \"llama3.2:1b\", \"prompt\": \"Say hello in one sentence.\", \"stream\": false}"
 ```
 
-If you pulled `phi3`, replace the model name in the JSON:
+## 4. One-time knowledge ingest (Slice 4)
 
-```bash
-curl http://localhost:11434/api/generate -d "{\"model\": \"phi3\", \"prompt\": \"Say hello in one sentence.\", \"stream\": false}"
+Embeds every file in `knowledge/` into a local ChromaDB store at `chroma_db/`.
+
+```powershell
+cd rag
+py -m venv .venv
+.\.venv\Scripts\pip.exe install -r requirements.txt
+.\.venv\Scripts\python.exe ingest.py
 ```
 
-A successful response is JSON containing a `"response"` field with generated text.
+Re-run `ingest.py` whenever you edit knowledge files.
+
+## Knowledge topics
+
+- Economy vs Premium Economy vs Business
+- Layover and connection risk
+- Baggage allowance basics
+- Airport check-in and security timing
+- What is a Codeshare flight
+- Flight delay and cancellation basics
 
 ## Stop the container
 
-```bash
+```powershell
 docker compose down
 ```
 
-To stop and remove the persisted models volume as well:
+To also wipe downloaded models:
 
-```bash
+```powershell
 docker compose down -v
 ```

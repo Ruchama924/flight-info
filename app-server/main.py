@@ -10,8 +10,10 @@ from commands.register_user import (
     RegisterUserCommand,
     RegisterUserHandler,
 )
+from models.advisor_schemas import AskAdvisorRequest, AskAdvisorResponse
 from models.auth_schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
 from models.flight_schemas import FlightDetails, FlightSearchResponse
+from queries.ask_advisor import AdvisorError, AskAdvisorHandler, AskAdvisorQuery
 from queries.get_flight_details import (
     FlightNotFoundError,
     GetFlightDetailsHandler,
@@ -36,8 +38,9 @@ register_handler = RegisterUserHandler(event_store)
 login_handler = LoginUserHandler(event_store)
 search_handler = SearchFlightsHandler()
 details_handler = GetFlightDetailsHandler(search_handler)
+advisor_handler = AskAdvisorHandler()
 
-app = FastAPI(title="FlightAdvisor App Server", version="0.3.0")
+app = FastAPI(title="FlightAdvisor App Server", version="0.4.0")
 
 
 @app.post("/auth/register", response_model=RegisterResponse)
@@ -101,6 +104,23 @@ def get_flight_details(
         return details_handler.handle(GetFlightDetailsQuery(flight_id=flight_id))
     except FlightNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post("/advisor/ask", response_model=AskAdvisorResponse)
+def ask_advisor(
+    request: AskAdvisorRequest,
+    _user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> AskAdvisorResponse:
+    try:
+        result = advisor_handler.handle(AskAdvisorQuery(question=request.question))
+    except AdvisorError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return AskAdvisorResponse(
+        answer=result.answer,
+        topics_used=result.topics_used,
+        question=request.question.strip(),
+    )
 
 
 @app.get("/health")

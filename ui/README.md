@@ -1,11 +1,12 @@
-# UI — Slice 1–3 (Auth + Search + Details/Chart)
+# UI — Slice 1–4 (Auth + Search + Details/Chart + Advisor)
 
 PySide6 desktop client using MVP:
 
 - Auth: `LoginView` → `LoginPresenter` → `AuthModel`
 - Search: `SearchView` → `SearchPresenter` → `SearchModel`
 - Details: `FlightDetailsView` (dialog) → `FlightDetailsPresenter`
-- Chart: price bar chart embedded under the search results table
+- Chart: price bar chart under the search results table
+- Advisor: `AdvisorView` → `AdvisorPresenter` → `AdvisorModel` (HTTP on a background `QThread`)
 
 ## Setup
 
@@ -20,7 +21,8 @@ py -m venv .venv
 
 ## Run
 
-Start **app-server** (8001) and **gateway** (8000) first, then:
+Start **Ollama**, run **rag/ingest.py** once, then **app-server** (8001) and
+**gateway** (8000), then:
 
 ```powershell
 .\.venv\Scripts\python.exe main.py
@@ -29,9 +31,9 @@ Start **app-server** (8001) and **gateway** (8000) first, then:
 ## Usage
 
 1. **Register** / **Login** — JWT stored in `SessionStore`.
-2. **Search Flights** — e.g. `JFK` → `LAX`, today's date, click Search.
-3. Price chart under the table updates automatically (one bar per flight).
-4. Select a row and click **Details**, or **double-click** a row — dialog shows
-   terminals, gates, delays, aircraft, and codeshare ("Operated by…") when present.
+2. **Search Flights** — search, chart, details (as in Slice 2–3).
+3. **Ask Advisor** — type a question, click Ask. Status shows `Thinking…`
+   while the local LLM answers; the window stays responsive. The answer lists
+   which knowledge topics were used.
 
 The UI talks to the gateway at `http://127.0.0.1:8000`.
