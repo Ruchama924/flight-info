@@ -3,12 +3,14 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
+    QPushButton,
     QVBoxLayout,
 )
 
@@ -18,10 +20,14 @@ logger = logging.getLogger(__name__)
 class FlightDetailsView(QDialog):
     """Passive dialog showing full details for one flight."""
 
+    book_requested = Signal(str)
+
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Flight details")
-        self.resize(480, 420)
+        self.resize(480, 460)
+
+        self._flight_id = ""
 
         self._title = QLabel("")
         self._title.setStyleSheet("font-size: 14px; font-weight: bold;")
@@ -43,14 +49,28 @@ class FlightDetailsView(QDialog):
         buttons.rejected.connect(self.reject)
         buttons.accepted.connect(self.accept)
 
+        self._book_button = QPushButton("Book this flight")
+        self._book_button.clicked.connect(self._on_book_clicked)
+
+        action_row = QHBoxLayout()
+        action_row.addWidget(self._book_button)
+        action_row.addStretch()
+        action_row.addWidget(buttons)
+
         layout = QVBoxLayout(self)
         layout.addWidget(self._title)
         layout.addWidget(self._codeshare)
         layout.addLayout(self._form)
-        layout.addWidget(buttons)
+        layout.addLayout(action_row)
+
+    def _on_book_clicked(self) -> None:
+        if self._flight_id:
+            logger.info("Book this flight clicked flight_id=%s", self._flight_id)
+            self.book_requested.emit(self._flight_id)
 
     def populate(self, details: dict[str, Any]) -> None:
         flight_id = details.get("flight_id") or ""
+        self._flight_id = str(flight_id)
         airline = details.get("airline") or ""
         self.setWindowTitle(f"Flight details — {flight_id}")
         self._title.setText(f"{airline}  ·  {flight_id}")

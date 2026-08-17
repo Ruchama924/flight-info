@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 
 APP_SERVER_URL = os.getenv("APP_SERVER_URL", "http://127.0.0.1:8001")
 
-app = FastAPI(title="FlightAdvisor Gateway", version="0.4.0")
+app = FastAPI(title="FlightAdvisor Gateway", version="0.5.0")
 
 
 async def _forward(request: Request, path: str) -> Response:
@@ -70,6 +70,21 @@ async def get_flight_details(flight_id: str, request: Request) -> Response:
 @app.post("/advisor/ask")
 async def ask_advisor(request: Request) -> Response:
     return await _forward(request, "/advisor/ask")
+
+
+@app.post("/bookings")
+async def create_booking(request: Request) -> Response:
+    return await _forward(request, "/bookings")
+
+
+@app.get("/bookings/me")
+async def get_my_bookings(request: Request) -> Response:
+    return await _forward(request, "/bookings/me")
+
+
+@app.delete("/bookings/{booking_id}")
+async def cancel_booking(booking_id: str, request: Request) -> Response:
+    return await _forward(request, f"/bookings/{booking_id}")
 
 
 @app.get("/health")

@@ -7,6 +7,14 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
 
 from auth_deps import AuthenticatedUser, get_current_user
+from commands.cancel_booking import (
+    BookingAlreadyCancelledError,
+    BookingForbiddenError,
+    BookingNotFoundError,
+    CancelBookingCommand,
+    CancelBookingHandler,
+)
+from commands.create_booking import CreateBookingCommand, CreateBookingHandler
 from commands.register_user import (
     EmailAlreadyRegisteredError,
     RegisterUserCommand,
@@ -14,6 +22,12 @@ from commands.register_user import (
 )
 from models.advisor_schemas import AskAdvisorRequest, AskAdvisorResponse
 from models.auth_schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
+from models.booking_schemas import (
+    CancelBookingResponse,
+    CreateBookingRequest,
+    CreateBookingResponse,
+    MyBookingsResponse,
+)
 from models.flight_schemas import FlightDetails, FlightSearchResponse
 from queries.ask_advisor import AdvisorError, AskAdvisorHandler, AskAdvisorQuery
 from queries.get_flight_details import (
@@ -21,6 +35,7 @@ from queries.get_flight_details import (
     GetFlightDetailsHandler,
     GetFlightDetailsQuery,
 )
+from queries.get_my_bookings import GetMyBookingsHandler, GetMyBookingsQuery
 from queries.login_user import InvalidCredentialsError, LoginQuery, LoginUserHandler
 from queries.search_flights import (
     ExternalApiError,
@@ -80,9 +95,12 @@ register_handler = RegisterUserHandler(event_store)
 login_handler = LoginUserHandler(event_store)
 search_handler = SearchFlightsHandler()
 details_handler = GetFlightDetailsHandler(search_handler)
+create_booking_handler = CreateBookingHandler(event_store, details_handler)
+cancel_booking_handler = CancelBookingHandler(event_store)
+my_bookings_handler = GetMyBookingsHandler(event_store, search_handler)
 advisor_handler = AskAdvisorHandler()
 
-app = FastAPI(title="FlightAdvisor App Server", version="0.4.0")
+app = FastAPI(title="FlightAdvisor App Server", version="0.5.0")
 
 
 @app.post("/auth/register", response_model=RegisterResponse)
@@ -162,6 +180,61 @@ def ask_advisor(
         answer=result.answer,
         topics_used=result.topics_used,
         question=request.question.strip(),
+    )
+
+
+@app.post("/bookings", response_model=CreateBookingResponse)
+def create_booking(
+    request: CreateBookingRequest,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> CreateBookingResponse:
+    try:
+        event = create_booking_handler.handle(
+            CreateBookingCommand(
+                user_id=user.user_id,
+                flight_id=request.flight_id,
+                passenger_name=request.passenger_name,
+                passport_number=request.passport_number,
+            )
+        )
+    except FlightNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return CreateBookingResponse(
+        booking_id=event.booking_id,
+        flight_id=event.flight_id,
+        passenger_name=event.passenger_name,
+        created_at=event.created_at,
+    )
+
+
+@app.get("/bookings/me", response_model=MyBookingsResponse)
+def get_my_bookings(
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> MyBookingsResponse:
+    bookings = my_bookings_handler.handle(GetMyBookingsQuery(user_id=user.user_id))
+    return MyBookingsResponse(count=len(bookings), bookings=bookings)
+
+
+@app.delete("/bookings/{booking_id}", response_model=CancelBookingResponse)
+def cancel_booking(
+    booking_id: str,
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> CancelBookingResponse:
+    try:
+        event = cancel_booking_handler.handle(
+            CancelBookingCommand(user_id=user.user_id, booking_id=booking_id)
+        )
+    except BookingNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except BookingForbiddenError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except BookingAlreadyCancelledError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    return CancelBookingResponse(
+        booking_id=event.booking_id,
+        cancelled_at=event.cancelled_at,
     )
 
 
