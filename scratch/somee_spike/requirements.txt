@@ -1,0 +1,10 @@
+# pyodbc (recommended on Windows): uses Microsoft's ODBC Driver for SQL Server.
+# Most reliable with somee.com because their control panel gives ODBC-style
+# connection strings and ODBC is the native SQL Server path on Windows.
+#
+# pymssql (alternative): wraps FreeTDS, no ODBC install required, but on
+# Windows it often has trickier installs, older TLS behavior, and less alignment
+# with somee's documented connection strings. Use pyodbc unless ODBC drivers
+# cannot be installed on this machine.
+pyodbc>=5.0.0
+python-dotenv>=1.0.0
