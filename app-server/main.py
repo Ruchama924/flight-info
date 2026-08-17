@@ -1,7 +1,9 @@
 import logging
+import os
 from pathlib import Path
 from typing import Annotated
 
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
 
 from auth_deps import AuthenticatedUser, get_current_user
@@ -25,15 +27,55 @@ from queries.search_flights import (
     SearchFlightsHandler,
     SearchFlightsQuery,
 )
-from repositories.event_store import SQLiteEventStore
+from repositories.event_store import EventStoreRepository, SomeeEventStore, SQLiteEventStore
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
+logger = logging.getLogger(__name__)
 
-DB_PATH = Path(__file__).resolve().parent / "data" / "events.db"
-event_store = SQLiteEventStore(DB_PATH)
+_ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
+load_dotenv(_ENV_PATH)
+
+
+def _create_event_store() -> EventStoreRepository:
+    backend = os.getenv("EVENT_STORE_BACKEND", "sqlite").strip().lower()
+
+    if backend == "somee":
+        server = os.getenv("SOMEE_SERVER", "").strip()
+        database = os.getenv("SOMEE_DATABASE", "").strip()
+        uid = os.getenv("SOMEE_UID", "").strip()
+        pwd = os.getenv("SOMEE_PWD", "").strip()
+        missing = [
+            name
+            for name, value in [
+                ("SOMEE_SERVER", server),
+                ("SOMEE_DATABASE", database),
+                ("SOMEE_UID", uid),
+                ("SOMEE_PWD", pwd),
+            ]
+            if not value
+        ]
+        if missing:
+            raise RuntimeError(
+                "EVENT_STORE_BACKEND=somee requires these .env variables: "
+                + ", ".join(missing)
+            )
+        logger.info("Event store backend: somee (server=%s, database=%s)", server, database)
+        return SomeeEventStore(server=server, database=database, uid=uid, pwd=pwd)
+
+    if backend != "sqlite":
+        raise RuntimeError(
+            f"Unknown EVENT_STORE_BACKEND={backend!r}; expected 'sqlite' or 'somee'"
+        )
+
+    db_path = Path(__file__).resolve().parent / "data" / "events.db"
+    logger.info("Event store backend: sqlite (path=%s)", db_path)
+    return SQLiteEventStore(db_path)
+
+
+event_store = _create_event_store()
 register_handler = RegisterUserHandler(event_store)
 login_handler = LoginUserHandler(event_store)
 search_handler = SearchFlightsHandler()
