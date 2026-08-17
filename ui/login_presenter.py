@@ -71,7 +71,8 @@ class LoginPresenter:
                     user_id=result.user_id,
                     email=result.email,
                 )
-                self._view.show_info("Login", f"Logged in as {result.email}")
+                self._view.set_logged_in(result.email)
+                self._view.show_info("Login", f"Welcome back, {result.email}")
                 self._view.clear_login_password()
                 return
 

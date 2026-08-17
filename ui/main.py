@@ -17,6 +17,7 @@ from search_model import SearchModel
 from search_presenter import SearchPresenter
 from search_view import SearchView
 from session import SessionStore
+from theme import apply_theme
 
 logging.basicConfig(
     level=logging.INFO,
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 def main() -> int:
     app = QApplication(sys.argv)
+    apply_theme(app)
 
     session_store = SessionStore()
     search_model = SearchModel()
@@ -57,7 +59,7 @@ def main() -> int:
     login_view = LoginView(
         extra_tabs=[
             ("Search Flights", search_view),
-            ("Ask Advisor", advisor_view),
+            ("Travel Advisor", advisor_view),
             ("My Bookings", booking_view),
         ]
     )

@@ -10,88 +10,124 @@ from PySide6.QtCharts import (
     QChartView,
     QValueAxis,
 )
-from PySide6.QtCore import QDate, Qt, Signal
-from PySide6.QtGui import QPainter
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
-    QDateEdit,
-    QFormLayout,
+    QFrame,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMessageBox,
-    QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
-logger = logging.getLogger(__name__)
+from theme import Colors, Spacing
+from widgets.buttons import PrimaryButton, SecondaryButton
+from widgets.empty_state import EmptyState
+from widgets.flight_card import FlightResultCard
+from widgets.inputs import FormField, StyledDateEdit, StyledLineEdit
+from widgets.page_header import PageHeader
 
-_COLUMNS = ("Airline", "Flight", "Departure", "Arrival", "Price (USD)")
-_FLIGHT_ID_ROLE = Qt.ItemDataRole.UserRole
+logger = logging.getLogger(__name__)
 
 
 class SearchView(QWidget):
-    """Passive search form + results table + price chart (MVP View)."""
+    """Passive search form + flight cards + price chart (MVP View)."""
 
-    search_requested = Signal(str, str, str)  # origin, destination, date
-    details_requested = Signal(str)  # flight_id
+    search_requested = Signal(str, str, str)
+    details_requested = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
 
-        self._origin = QLineEdit()
-        self._origin.setPlaceholderText("e.g. JFK")
+        self._origin = StyledLineEdit("JFK")
         self._origin.setMaxLength(3)
 
-        self._destination = QLineEdit()
-        self._destination.setPlaceholderText("e.g. LAX")
+        self._destination = StyledLineEdit("LAX")
         self._destination.setMaxLength(3)
 
-        self._date = QDateEdit()
-        self._date.setCalendarPopup(True)
-        self._date.setDisplayFormat("yyyy-MM-dd")
-        self._date.setDate(QDate.currentDate())
-
-        form = QFormLayout()
-        form.addRow("Origin (IATA):", self._origin)
-        form.addRow("Destination (IATA):", self._destination)
-        form.addRow("Date:", self._date)
-
-        search_button = QPushButton("Search")
-        search_button.clicked.connect(self._on_search_clicked)
-        details_button = QPushButton("Details")
-        details_button.clicked.connect(self._on_details_clicked)
-
-        button_row = QHBoxLayout()
-        button_row.addStretch()
-        button_row.addWidget(details_button)
-        button_row.addWidget(search_button)
+        self._date = StyledDateEdit()
 
         self._status = QLabel("")
-        self._table = QTableWidget(0, len(_COLUMNS))
-        self._table.setHorizontalHeaderLabels(list(_COLUMNS))
-        self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self._table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self._table.horizontalHeader().setStretchLastSection(True)
-        self._table.cellDoubleClicked.connect(self._on_row_double_clicked)
+        self._status.setProperty("class", "muted")
+
+        self._selected_flight_id: str | None = None
+        self._flight_cards: list[FlightResultCard] = []
+
+        self._results_container = QWidget()
+        self._results_layout = QVBoxLayout(self._results_container)
+        self._results_layout.setContentsMargins(0, 0, 0, 0)
+        self._results_layout.setSpacing(10)
+
+        self._empty_state = EmptyState(
+            "Search for flights",
+            "Enter origin, destination, and date above to compare available flights.",
+        )
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(self._results_container)
+        scroll.setMinimumHeight(200)
 
         self._chart = QChart()
-        self._chart.setTitle("Price comparison (USD)")
+        self._chart.setBackgroundVisible(False)
+        self._chart.setTitleBrush(QColor(Colors.TEXT))
+        self._chart.setTitle("Price comparison")
         self._chart.legend().setVisible(False)
         self._chart_view = QChartView(self._chart)
         self._chart_view.setRenderHint(QPainter.RenderHint.Antialiasing)
-        self._chart_view.setMinimumHeight(220)
+        self._chart_view.setMinimumHeight(240)
+        self._chart_view.setStyleSheet("background: transparent;")
+
+        chart_frame = QFrame()
+        chart_frame.setProperty("class", "card")
+        chart_layout = QVBoxLayout(chart_frame)
+        chart_layout.setContentsMargins(16, 16, 16, 16)
+        chart_title = QLabel("Price dashboard")
+        chart_title.setProperty("class", "section-title")
+        chart_layout.addWidget(chart_title)
+        chart_layout.addWidget(self._chart_view)
+
+        search_btn = PrimaryButton("Search flights")
+        search_btn.clicked.connect(self._on_search_clicked)
+        self._details_btn = SecondaryButton("View details")
+        self._details_btn.clicked.connect(self._on_details_clicked)
+
+        btn_row = QHBoxLayout()
+        btn_row.addWidget(self._details_btn)
+        btn_row.addStretch()
+
+        search_panel = QFrame()
+        search_panel.setProperty("class", "search-panel")
+        panel_layout = QHBoxLayout(search_panel)
+        panel_layout.setContentsMargins(20, 20, 20, 20)
+        panel_layout.setSpacing(Spacing.LG)
+
+        fields = QHBoxLayout()
+        fields.setSpacing(Spacing.LG)
+        fields.addWidget(FormField("From", self._origin))
+        fields.addWidget(FormField("To", self._destination))
+        fields.addWidget(FormField("Departure", self._date))
+        panel_layout.addLayout(fields, stretch=1)
+        panel_layout.addWidget(search_btn)
 
         layout = QVBoxLayout(self)
-        layout.addLayout(form)
-        layout.addLayout(button_row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(Spacing.LG)
+        layout.addWidget(
+            PageHeader(
+                "Find your flight",
+                "Compare routes, prices, and schedules from live aviation data.",
+            )
+        )
+        layout.addWidget(search_panel)
+        layout.addLayout(btn_row)
         layout.addWidget(self._status)
-        layout.addWidget(self._table, stretch=2)
-        layout.addWidget(QLabel("Price Comparison"))
-        layout.addWidget(self._chart_view, stretch=1)
+        layout.addWidget(scroll, stretch=2)
+        layout.addWidget(chart_frame, stretch=1)
+
+        self._show_empty_results()
 
     def _on_search_clicked(self) -> None:
         origin = self._origin.text().strip().upper()
@@ -106,53 +142,50 @@ class SearchView(QWidget):
         self.search_requested.emit(origin, destination, date)
 
     def _on_details_clicked(self) -> None:
-        flight_id = self._selected_flight_id()
-        if not flight_id:
-            self.show_error("Details", "Select a flight row first.")
+        if not self._selected_flight_id:
+            self.show_error("Details", "Select a flight first.")
             return
-        logger.info("Details button clicked flight_id=%s", flight_id)
-        self.details_requested.emit(flight_id)
+        logger.info("Details button clicked flight_id=%s", self._selected_flight_id)
+        self.details_requested.emit(self._selected_flight_id)
 
-    def _on_row_double_clicked(self, row: int, _column: int) -> None:
-        item = self._table.item(row, 1)
-        if item is None:
-            return
-        flight_id = item.data(_FLIGHT_ID_ROLE) or item.text()
-        logger.info("Row double-clicked flight_id=%s", flight_id)
-        self.details_requested.emit(str(flight_id))
-
-    def _selected_flight_id(self) -> str | None:
-        rows = self._table.selectionModel().selectedRows()
-        if not rows:
-            return None
-        item = self._table.item(rows[0].row(), 1)
-        if item is None:
-            return None
-        return str(item.data(_FLIGHT_ID_ROLE) or item.text())
+    def _on_card_selected(self, flight_id: str) -> None:
+        self._selected_flight_id = flight_id
+        for card in self._flight_cards:
+            card.set_selected(card.flight_id() == flight_id)
 
     def set_status(self, text: str) -> None:
         self._status.setText(text)
 
     def show_flights(self, flights: list[dict]) -> None:
-        self._table.setRowCount(0)
-        for flight in flights:
-            row = self._table.rowCount()
-            self._table.insertRow(row)
-            flight_id = str(flight.get("flight_id") or "")
-            values = [
-                str(flight.get("airline") or ""),
-                flight_id,
-                str(flight.get("departure_time") or ""),
-                str(flight.get("arrival_time") or ""),
-                f"{float(flight.get('price') or 0):.2f}",
-            ]
-            for col, value in enumerate(values):
-                cell = QTableWidgetItem(value)
-                if col == 1:
-                    cell.setData(_FLIGHT_ID_ROLE, flight_id)
-                self._table.setItem(row, col, cell)
+        self._clear_results()
+        self._selected_flight_id = None
 
+        if not flights:
+            self._show_empty_results()
+            self.update_price_chart(flights)
+            return
+
+        for flight in flights:
+            card = FlightResultCard(flight)
+            card.clicked.connect(self._on_card_selected)
+            card.double_clicked.connect(self.details_requested.emit)
+            self._flight_cards.append(card)
+            self._results_layout.addWidget(card)
+
+        self._results_layout.addStretch()
         self.update_price_chart(flights)
+
+    def _clear_results(self) -> None:
+        while self._results_layout.count():
+            item = self._results_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self._flight_cards.clear()
+
+    def _show_empty_results(self) -> None:
+        self._clear_results()
+        self._results_layout.addWidget(self._empty_state)
 
     def update_price_chart(self, flights: list[dict]) -> None:
         self._chart.removeAllSeries()
@@ -160,11 +193,11 @@ class SearchView(QWidget):
             self._chart.removeAxis(axis)
 
         if not flights:
-            self._chart.setTitle("Price comparison (USD) — no results")
+            self._chart.setTitle("Price comparison — no results yet")
             return
 
-        # Cap labels for readability if many results (still plot all prices).
         bar_set = QBarSet("Price")
+        bar_set.setColor(QColor(Colors.CHART_BAR))
         categories: list[str] = []
         for flight in flights:
             flight_id = str(flight.get("flight_id") or "?")
@@ -174,20 +207,21 @@ class SearchView(QWidget):
         series = QBarSeries()
         series.append(bar_set)
         self._chart.addSeries(series)
-        self._chart.setTitle(
-            f"Price comparison (USD) — {len(flights)} flight(s)"
-        )
+        self._chart.setTitle(f"Price comparison — {len(flights)} flight(s)")
 
         axis_x = QBarCategoryAxis()
         axis_x.append(categories)
-        if len(categories) > 12:
-            axis_x.setLabelsAngle(-60)
+        axis_x.setLabelsColor(QColor(Colors.TEXT_SECONDARY))
+        if len(categories) > 10:
+            axis_x.setLabelsAngle(-45)
         self._chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
         series.attachAxis(axis_x)
 
         axis_y = QValueAxis()
-        axis_y.setTitleText("Price (USD)")
+        axis_y.setTitleText("USD")
         axis_y.setLabelFormat("%.0f")
+        axis_y.setLabelsColor(QColor(Colors.TEXT_SECONDARY))
+        axis_y.setGridLineColor(QColor(Colors.CHART_GRID))
         max_price = max(float(f.get("price") or 0) for f in flights)
         axis_y.setRange(0, max(100.0, max_price * 1.15))
         self._chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
