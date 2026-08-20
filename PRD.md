@@ -1,7 +1,7 @@
 # PRD — מערכת חיפוש והזמנת טיסות (FlightAdvisor)
 **קורס:** הנדסת מערכות חלונות — פרויקט סיום, סמסטר ב' תשפ"ו
-**גודל צוות:** זוג (2 מפתחים)
-**סטטוס:** גרסה 0.1 — טרם התחלת קוד
+**גודל צוות:** זוג (אילה ורוחמה)
+
 
 ---
 
@@ -24,7 +24,7 @@
 **מומלץ:** AviationStack או Aerodatabox (שניהם מציעים free tier, נתוני טיסות אמיתיים/היסטוריים לפי מספר טיסה, שדה תעופה, או מסלול).
 חלופה: OpenSky Network (חינמי לגמרי, ללא צורך ב-API key, אך פחות עשיר במידע מסחרי כמו מחירים).
 
-**פעולה נדרשת מכם:** להירשם ל-API הנבחר, לקבל API key, ולוודא בקריאת בדיקה (curl/Postman) שהוא עובד — **לפני** תחילת הפיתוח.
+**פעולה נדרשת:** להירשם ל-API הנבחר, לקבל API key, ולוודא בקריאת בדיקה (curl/Postman) שהוא עובד — **לפני** תחילת הפיתוח.
 
 > הערה: המידע על ה-APIs הללו עשוי להתעדכן — מומלץ לבדוק תיעוד עדכני ותנאי שימוש בזמן ההרשמה בפועל.
 
@@ -95,11 +95,11 @@
 
 ---
 
-## 6. Data Model (טיוטה ראשונית)
+## 6. Data Model
 
 **Events (Event Store):**
 - `UserRegistered { user_id, email, password_hash, created_at }`
-- `FlightSearched { search_id, user_id, origin, destination, date, timestamp }` (אופציונלי, לצורכי אנליטיקס)
+- `FlightSearched { search_id, user_id, origin, destination, date, timestamp }`
 - `BookingCreated { booking_id, user_id, flight_id, passenger_name, passport_no, created_at }`
 - `BookingCancelled { booking_id, cancelled_at }`
 
@@ -126,7 +126,7 @@
 
 ---
 
-## 8. Non-Functional — תזכורת לדרישות מחייבות
+## 8. Non-Functional
 
 - UI: PySide 6/6.5, MVP + Microfrontends
 - גרפים: QtCharts
@@ -134,9 +134,8 @@
 - אחסון: somee.com + Event Sourcing
 - גישה לחוץ: Gateway pattern
 - RAG: Ollama בתוך Docker
-- תיעוד: PRD זה + מסמכי המשך בגרסת סוכני קוד (PIV) — **לוודא מול המרצה בדיוק מה נדרש בפורמט ה-PIV**
+- תיעוד: PRD זה + מסמכי המשך בגרסת סוכני קוד (PIV)
 - קוד: GitHub Repo
-- (לא חובה לזוג) Cloudinary
 
 ---
 
